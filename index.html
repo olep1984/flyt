@@ -1064,6 +1064,133 @@ body.dark .adm-tab.active{color:#f59e0b;background:rgba(245,158,11,.1);}
 .handbok-empty-icon{font-size:48px;margin-bottom:12px;}
 .handbok-empty-text{font-size:14px;}
 </style>
+
+<!-- ═══ FIREBASE ═══ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, remove, update }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAu1W4OE9DjR_4SDLS8y6c2ej9c5OQXplQ",
+  authDomain: "rengaard-e82c6.firebaseapp.com",
+  databaseURL: "https://rengaard-e82c6-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "rengaard-e82c6",
+  storageBucket: "rengaard-e82c6.firebasestorage.app",
+  messagingSenderId: "308297352713",
+  appId: "1:308297352713:web:0db6289020144d34d29ad8",
+  measurementId: "G-Y3VPJCE4HN"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+window._db = db;
+
+// ── Hjelpefunksjoner ──
+window.fbSet  = async (path, data) => { await set(ref(db, path), data); };
+window.fbGet  = async (path)       => { const s = await get(ref(db, path)); return s.exists() ? s.val() : null; };
+window.fbDel  = async (path)       => { await remove(ref(db, path)); };
+window.fbSub  = (path, cb)         => { onValue(ref(db, path), snap => cb(snap.exists() ? snap.val() : null)); };
+
+// ── Synkroniser ved oppstart ──
+async function syncFraFirebase() {
+  const keys = [
+    'rt_users','rt_kjoretoy','rt_roller','rt_handbok','rt_feilmeldinger',
+    'rt_op_felt_liste','rt_op_hoved','rt_op_reg','rt_oppdrag_global',
+    'rt_kunder','rt_regnskap','rt_hr_info','rt_vars_innst',
+    'rt_global_satser','rt_lonn_modeller','rt_utbetalt','rt_sik','rt_srv'
+  ];
+  for(const k of keys) {
+    const val = await fbGet('data/' + k);
+    if(val !== null) localStorage.setItem(k, typeof val === 'string' ? val : JSON.stringify(val));
+  }
+
+  // Brukerspesifikke data (logger, kalender, oppdrag per bruker)
+  const usersRaw = await fbGet('data/rt_users');
+  if(usersRaw) {
+    const users = typeof usersRaw === 'string' ? JSON.parse(usersRaw) : usersRaw;
+    for(const uname of Object.keys(users)) {
+      for(const suffix of ['sl','kl','op']) {
+        const val = await fbGet(`data/u_${uname}_${suffix}`);
+        if(val !== null) localStorage.setItem(`rt_${suffix}_${uname}`, typeof val === 'string' ? val : JSON.stringify(val));
+      }
+      // Stempling
+      const inn = await fbGet(`data/inn_${uname}`);
+      if(inn !== null) localStorage.setItem(`rt_inn_${uname}`, typeof inn === 'string' ? inn : JSON.stringify(inn));
+    }
+  }
+
+  console.log('✓ Firebase sync ferdig');
+  window._fbKlar = true;
+}
+
+// ── Patch save-funksjoner til å også skrive til Firebase ──
+function patchSaves() {
+  const origSet = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(key, value) {
+    origSet(key, value);
+    if(!key.startsWith('rt_')) return;
+    // Mappingsregler
+    let fbPath = null;
+    if(['rt_users','rt_kjoretoy','rt_roller','rt_handbok','rt_feilmeldinger',
+        'rt_op_felt_liste','rt_op_hoved','rt_op_reg','rt_oppdrag_global',
+        'rt_kunder','rt_regnskap','rt_hr_info','rt_vars_innst',
+        'rt_global_satser','rt_lonn_modeller','rt_utbetalt','rt_sik','rt_srv'].includes(key)) {
+      fbPath = 'data/' + key;
+    } else if(key.startsWith('rt_inn_')) {
+      fbPath = 'data/inn_' + key.slice(7);
+    } else if(key.match(/^rt_(sl|kl|op)_(.+)$/)) {
+      const m = key.match(/^rt_(sl|kl|op)_(.+)$/);
+      fbPath = `data/u_${m[2]}_${m[1]}`;
+    }
+    if(fbPath) {
+      try { const parsed = JSON.parse(value); fbSet(fbPath, parsed); }
+      catch { fbSet(fbPath, value); }
+    }
+  };
+
+  const origRemove = localStorage.removeItem.bind(localStorage);
+  localStorage.removeItem = function(key) {
+    origRemove(key);
+    if(key.startsWith('rt_inn_')) fbDel('data/inn_' + key.slice(7));
+  };
+}
+
+// ── Live-lytter: oppdater brukere og stempling i sanntid ──
+function startLiveSync() {
+  fbSub('data/rt_users', val => {
+    if(val) { localStorage.__origSet('rt_users', typeof val==='string'?val:JSON.stringify(val)); }
+  });
+  fbSub('data/rt_kjoretoy', val => {
+    if(val) { localStorage.__origSet('rt_kjoretoy', typeof val==='string'?val:JSON.stringify(val)); }
+  });
+  fbSub('data/rt_feilmeldinger', val => {
+    if(val) { localStorage.__origSet('rt_feilmeldinger', typeof val==='string'?val:JSON.stringify(val)); }
+  });
+  fbSub('data/rt_op_reg', val => {
+    if(val) { localStorage.__origSet('rt_op_reg', typeof val==='string'?val:JSON.stringify(val)); }
+  });
+  // Live stempling for alle brukere
+  fbSub('data', val => {
+    if(!val) return;
+    Object.entries(val).forEach(([k,v]) => {
+      if(k.startsWith('inn_')) {
+        localStorage.__origSet('rt_inn_'+k.slice(4), typeof v==='string'?v:JSON.stringify(v));
+      }
+    });
+  });
+}
+
+// Start
+localStorage.__origSet = localStorage.setItem.bind(localStorage);
+syncFraFirebase().then(() => {
+  patchSaves();
+  startLiveSync();
+  // Oppdater UI hvis allerede innlogget
+  if(typeof oppdaterNavBadges === 'function') oppdaterNavBadges();
+});
+</script>
+
 </head>
 <body>
 
