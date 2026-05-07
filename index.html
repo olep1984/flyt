@@ -3565,7 +3565,11 @@ function loadUsers() {
   localStorage.setItem('rt_users', JSON.stringify(defaults));
   return defaults;
 }
-function saveUsers(u) { localStorage.setItem('rt_users', JSON.stringify(u)); }
+function saveUsers(u) {
+  localStorage.setItem('rt_users', JSON.stringify(u));
+  // Skriv alltid direkte til Firebase også
+  if(window.fbSet) window.fbSet('data/rt_users', u);
+}
 function nullstillBrukere() {
   localStorage.removeItem('rt_users');
   USERS = loadUsers();
@@ -3577,11 +3581,11 @@ let USERS = loadUsers();
 // Per-bruker data helpers
 function userKey(u,type) { return `rt_${type}_${u}`; }
 function loadLog(u)    { return JSON.parse(localStorage.getItem(userKey(u,'sl')) || '[]'); }
-function saveLog(u,d)  { localStorage.setItem(userKey(u,'sl'), JSON.stringify(d)); }
+function saveLog(u,d)  { localStorage.setItem(userKey(u,'sl'), JSON.stringify(d)); if(window.fbSet) window.fbSet('data/u_'+u+'_sl', d); }
 function loadKal(u)    { return JSON.parse(localStorage.getItem(userKey(u,'kl')) || '{}'); }
-function saveKal(u,d)  { localStorage.setItem(userKey(u,'kl'), JSON.stringify(d)); }
+function saveKal(u,d)  { localStorage.setItem(userKey(u,'kl'), JSON.stringify(d)); if(window.fbSet) window.fbSet('data/u_'+u+'_kl', d); }
 function loadOp(u)     { return JSON.parse(localStorage.getItem(userKey(u,'op')) || '[]'); }
-function saveOp(u,d)   { localStorage.setItem(userKey(u,'op'), JSON.stringify(d)); }
+function saveOp(u,d)   { localStorage.setItem(userKey(u,'op'), JSON.stringify(d)); if(window.fbSet) window.fbSet('data/u_'+u+'_op', d); }
 
 let stemplingLog=[], kalData={}, oppdragData=[];
 let kalCur=new Date(), kalSel=null;
@@ -5900,7 +5904,9 @@ function lukkFeil(id) {
 function stempelInn() {
   // Registrer innstemplingstid
   innTid=new Date(); innDato=fmtD(innTid);
-  localStorage.setItem(`rt_inn_${currentUser}`, JSON.stringify({tid:innTid.toISOString(),dato:innDato}));
+  const innData = {tid:innTid.toISOString(),dato:innDato};
+  localStorage.setItem(`rt_inn_${currentUser}`, JSON.stringify(innData));
+  if(window.fbSet) window.fbSet(`data/inn_${currentUser}`, innData);
   document.getElementById('btn-inn').disabled=true;
   document.getElementById('btn-ut').disabled=false;
   const st=document.getElementById('dash-stamp-status');
@@ -6005,6 +6011,7 @@ function fullforUt() {
   saveLog(currentUser,stemplingLog);
   // Fjern lagret innstempeling
   localStorage.removeItem(`rt_inn_${currentUser}`);
+  if(window.fbDel) window.fbDel(`data/inn_${currentUser}`);
   innTid=null; innDato=null;
   document.getElementById('btn-inn').disabled=false;
   document.getElementById('btn-ut').disabled=true;
