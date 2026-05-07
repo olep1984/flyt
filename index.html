@@ -2683,12 +2683,12 @@ body.dark .adm-tab.active{color:#f59e0b;background:rgba(245,158,11,.1);}
 
       <!-- Legg til kjøretøy -->
       <div class="adm-card" style="margin-bottom:10px;">
-        <div class="adm-card-header" style="cursor:pointer;margin-bottom:0;border-bottom:none;padding-bottom:0;" onclick="toggleKollaps('ny-kj-form','ny-kj-pil')">
+        <div class="adm-card-header" style="cursor:pointer;margin-bottom:0;border-bottom:none;padding-bottom:0;" onclick="toggleKollaps('adm-ny-kj-form','adm-ny-kj-pil')">
           <span class="adm-card-icon">➕</span>
           <span class="adm-card-title">Legg til kjøretøy / henger</span>
-          <span id="ny-kj-pil" style="margin-left:auto;color:var(--grey);font-size:13px;">▾</span>
+          <span id="adm-ny-kj-pil" style="margin-left:auto;color:var(--grey);font-size:13px;">▾</span>
         </div>
-        <div id="ny-kj-form" style="display:none;margin-top:12px;border-top:1px solid var(--border-color);padding-top:12px;">
+        <div id="adm-ny-kj-form" style="display:none;margin-top:12px;border-top:1px solid var(--border-color);padding-top:12px;">
         <div class="adm-form-grid">
           <div class="profil-field"><label>Type</label>
             <select id="kj-type" onchange="oppdaterKjType()">
