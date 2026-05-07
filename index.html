@@ -3633,30 +3633,50 @@ function goTo(id) {
 // ══════════════════════════════════════════
 // LOGIN / LOGOUT
 // ══════════════════════════════════════════
-function doLogin() {
+async function doLogin() {
   const u=document.getElementById('login-user').value.trim().toLowerCase();
   const p=document.getElementById('login-pass').value;
+  const errEl=document.getElementById('login-error');
+  const btn=document.querySelector('.btn-login');
+
+  // Vis laster-melding
+  errEl.textContent='';
+  if(btn){ btn.textContent='Laster...'; btn.disabled=true; }
+
+  // Prøv å hente brukere fra Firebase direkte (fungerer på alle enheter)
+  try {
+    if(window.fbGet) {
+      const fbUsers = await window.fbGet('data/rt_users');
+      if(fbUsers) {
+        const parsed = typeof fbUsers==='string' ? JSON.parse(fbUsers) : fbUsers;
+        localStorage.setItem('rt_users', JSON.stringify(parsed));
+      }
+    }
+  } catch(e) { console.warn('Firebase-henting feilet, bruker localStorage', e); }
+
   USERS=loadUsers();
   const ud = USERS[u];
   const passordOk = ud && (ud.passord===p || ud.pw===p);
+
+  if(btn){ btn.textContent='Logg inn'; btn.disabled=false; }
+
   if(passordOk){
     currentUser=u;
     stemplingLog=loadLog(u);
     kalData=loadKal(u);
     oppdragData=loadOp(u);
-    window._sesjonStart = Date.now(); // tidspunkt for innlogging
-    document.getElementById('login-error').textContent='';
+    window._sesjonStart = Date.now();
+    errEl.textContent='';
     updateUI();
     sjekkPaminnelse();
     goTo('screen-dashboard');
-    // Vis bilvelger ved innlogging kun for ansatte/sjåfører — ikke for admin/leder
     setTimeout(()=>{
       if(!harTilgang('admin')) {
         aapneOppstart();
       }
     }, 350);
   } else {
-    document.getElementById('login-error').textContent='⚠ Feil brukernavn eller passord.';
+    errEl.textContent='⚠ Feil brukernavn eller passord.';
   }
 }
 document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
