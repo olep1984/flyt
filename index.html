@@ -1159,7 +1159,15 @@ function patchSaves() {
 // ── Live-lytter: oppdater brukere og stempling i sanntid ──
 function startLiveSync() {
   fbSub('data/rt_users', val => {
-    if(val) { localStorage.__origSet('rt_users', typeof val==='string'?val:JSON.stringify(val)); }
+    if(val) {
+      localStorage.__origSet('rt_users', typeof val==='string'?val:JSON.stringify(val));
+      USERS = loadUsers();
+      // Oppdater live-dashboard hvis det er synlig
+      const adm = document.getElementById('screen-admin');
+      const ldr = document.getElementById('screen-leder');
+      if(adm && adm.classList.contains('active') && typeof renderLiveDashboard==='function') renderLiveDashboard();
+      if(ldr && ldr.classList.contains('active') && typeof ldrRenderLive==='function') ldrRenderLive();
+    }
   });
   fbSub('data/rt_kjoretoy', val => {
     if(val) { localStorage.__origSet('rt_kjoretoy', typeof val==='string'?val:JSON.stringify(val)); }
@@ -1173,11 +1181,26 @@ function startLiveSync() {
   // Live stempling for alle brukere
   fbSub('data', val => {
     if(!val) return;
+    let nyStempling = false;
     Object.entries(val).forEach(([k,v]) => {
       if(k.startsWith('inn_')) {
         localStorage.__origSet('rt_inn_'+k.slice(4), typeof v==='string'?v:JSON.stringify(v));
+        nyStempling = true;
+      }
+      if(k.startsWith('u_')) {
+        // Brukerlogg (sl), kalender (kl), oppdrag (op)
+        const m = k.match(/^u_(.+)_(sl|kl|op)$/);
+        if(m) localStorage.__origSet(`rt_${m[2]}_${m[1]}`, typeof v==='string'?v:JSON.stringify(v));
       }
     });
+    if(nyStempling) {
+      // Oppdater live-dashboard automatisk
+      const adm = document.getElementById('screen-admin');
+      const ldr = document.getElementById('screen-leder');
+      if(adm && adm.classList.contains('active') && typeof renderLiveDashboard==='function') renderLiveDashboard();
+      if(ldr && ldr.classList.contains('active') && typeof ldrRenderLive==='function') ldrRenderLive();
+      if(typeof oppdaterNavBadges==='function') oppdaterNavBadges();
+    }
   });
 }
 
