@@ -3520,28 +3520,21 @@ let innDato = null; // dato for siste innstempeling
 // Brukerbase — lagres i localStorage
 function loadUsers() {
   const defaults = {
-    ansatt: { pw:'1234', passord:'1234', role:'ansatt', rolle:'ansatt', p:{navn:'Demo Ansatt',stilling:'Sjåfør',avdeling:'Bodø',epost:'',telefon:'',ansnr:'RT-001',notat:''} },
-    admin:  { pw:'admin123', passord:'admin123', role:'admin', rolle:'admin', p:{navn:'Admin Bruker',stilling:'Administrator',avdeling:'Bodø',epost:'',telefon:'',ansnr:'RT-000',notat:''} },
-    leder:  { pw:'leder123', passord:'leder123', role:'leder', rolle:'leder', p:{navn:'Demo Leder',stilling:'Teamleder',avdeling:'Bodø',epost:'',telefon:'',ansnr:'RT-002',notat:''} },
-    ola:    { pw:'1234', passord:'1234', role:'ansatt', rolle:'ansatt', p:{navn:'Ola Nordmann',stilling:'Sjåfør',avdeling:'Bodø',epost:'',telefon:'',ansnr:'RT-003',notat:''} },
-    kari:   { pw:'1234', passord:'1234', role:'ansatt', rolle:'ansatt', p:{navn:'Kari Nordmann',stilling:'Sjåfør',avdeling:'Bodø',epost:'',telefon:'',ansnr:'RT-004',notat:''} },
+    bwk:    { pw:'9228', passord:'9228', role:'admin', rolle:'admin', p:{navn:'BWK',stilling:'Administrator',avdeling:'Bodø',epost:'',telefon:'',ansnr:'RT-001',notat:''} },
+    admin:  { pw:'admin123', passord:'admin123', role:'admin', rolle:'admin', p:{navn:'Admin',stilling:'Administrator',avdeling:'Bodø',epost:'',telefon:'',ansnr:'RT-000',notat:''} },
   };
   const saved = localStorage.getItem('rt_users');
   if (saved) {
     const parsed = JSON.parse(saved);
-    const merged = { ...defaults, ...parsed };
-    // Sikre at alle builtin-brukere alltid finnes med riktig passord
-    ['ansatt','admin','leder','ola','kari'].forEach(key => {
-      if(!merged[key]) {
-        merged[key] = defaults[key];
-      } else {
-        // Sync passord <-> pw for kompatibilitet
-        if(!merged[key].passord && !merged[key].pw) merged[key].passord = defaults[key].passord;
-        if(merged[key].passord && !merged[key].pw) merged[key].pw = merged[key].passord;
-        if(merged[key].pw && !merged[key].passord) merged[key].passord = merged[key].pw;
-        // Sikre rolle
-        if(!merged[key].rolle && !merged[key].role) merged[key].rolle = defaults[key].rolle;
-      }
+    const merged = { ...parsed };
+    // Sikre at bwk alltid finnes med riktig passord uansett hva som er lagret
+    merged['bwk'] = { ...defaults['bwk'], ...(parsed['bwk']||{}), pw:'9228', passord:'9228' };
+    if(!merged['bwk'].role && !merged['bwk'].rolle) { merged['bwk'].role='admin'; merged['bwk'].rolle='admin'; }
+    // Sync passord <-> pw for alle brukere
+    Object.keys(merged).forEach(key => {
+      if(merged[key].passord && !merged[key].pw) merged[key].pw = merged[key].passord;
+      if(merged[key].pw && !merged[key].passord) merged[key].passord = merged[key].pw;
+      if(!merged[key].rolle && !merged[key].role) merged[key].rolle = 'ansatt';
     });
     localStorage.setItem('rt_users', JSON.stringify(merged));
     return merged;
