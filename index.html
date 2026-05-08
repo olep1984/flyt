@@ -1157,50 +1157,79 @@ function patchSaves() {
 }
 
 // ── Live-lytter: oppdater brukere og stempling i sanntid ──
+function oppdaterAktivSkjerm() {
+  const aktiv = document.querySelector('.screen.active');
+  if(!aktiv) return;
+  const id = aktiv.id;
+
+  if(id === 'screen-admin') {
+    // Finn aktiv admin-fane
+    const aktivFane = ['live','ansatte','kjoretoy','timer','lonn','roller','kalender','oppdrag','oppdrag-ov','kunder','regnskap','server']
+      .find(t => { const b = document.getElementById(`atab-${t}`); return b && b.classList.contains('active'); });
+    if(aktivFane === 'live'       && typeof renderLiveDashboard==='function') renderLiveDashboard();
+    if(aktivFane === 'ansatte'    && typeof renderAdmin==='function') renderAdmin();
+    if(aktivFane === 'timer'      && typeof initGodkjenning==='function') initGodkjenning();
+    if(aktivFane === 'kjoretoy'   && typeof renderKjoretoy==='function') renderKjoretoy();
+    if(aktivFane === 'oppdrag'    && typeof initAdmOppdrag==='function') initAdmOppdrag();
+    if(aktivFane === 'oppdrag-ov' && typeof renderAdmOppdragOversikt==='function') renderAdmOppdragOversikt();
+  }
+  if(id === 'screen-leder') {
+    const aktivFane = ['live','timer','oppdrag']
+      .find(t => { const b = document.getElementById(`ltab-${t}`); return b && b.classList.contains('active'); });
+    if(aktivFane === 'live'  && typeof ldrRenderLive==='function') ldrRenderLive();
+    if(aktivFane === 'timer' && typeof renderAlleTimer==='function') renderAlleTimer();
+  }
+  if(id === 'screen-alle-timer'   && typeof renderAlleTimer==='function') renderAlleTimer();
+  if(id === 'screen-alle-oppdrag' && typeof renderAlleOppdrag==='function') renderAlleOppdrag();
+  if(typeof oppdaterNavBadges==='function') oppdaterNavBadges();
+}
+
 function startLiveSync() {
+  // Felles oppdateringsfunksjon med debounce
+  let oppdaterTimer = null;
+  function planleggOppdatering() {
+    clearTimeout(oppdaterTimer);
+    oppdaterTimer = setTimeout(oppdaterAktivSkjerm, 300);
+  }
+
   fbSub('data/rt_users', val => {
     if(val) {
       localStorage.__origSet('rt_users', typeof val==='string'?val:JSON.stringify(val));
       USERS = loadUsers();
-      // Oppdater live-dashboard hvis det er synlig
-      const adm = document.getElementById('screen-admin');
-      const ldr = document.getElementById('screen-leder');
-      if(adm && adm.classList.contains('active') && typeof renderLiveDashboard==='function') renderLiveDashboard();
-      if(ldr && ldr.classList.contains('active') && typeof ldrRenderLive==='function') ldrRenderLive();
+      planleggOppdatering();
     }
   });
   fbSub('data/rt_kjoretoy', val => {
-    if(val) { localStorage.__origSet('rt_kjoretoy', typeof val==='string'?val:JSON.stringify(val)); }
+    if(val) {
+      localStorage.__origSet('rt_kjoretoy', typeof val==='string'?val:JSON.stringify(val));
+      planleggOppdatering();
+    }
   });
   fbSub('data/rt_feilmeldinger', val => {
-    if(val) { localStorage.__origSet('rt_feilmeldinger', typeof val==='string'?val:JSON.stringify(val)); }
+    if(val) {
+      localStorage.__origSet('rt_feilmeldinger', typeof val==='string'?val:JSON.stringify(val));
+      planleggOppdatering();
+    }
   });
   fbSub('data/rt_op_reg', val => {
-    if(val) { localStorage.__origSet('rt_op_reg', typeof val==='string'?val:JSON.stringify(val)); }
+    if(val) {
+      localStorage.__origSet('rt_op_reg', typeof val==='string'?val:JSON.stringify(val));
+      planleggOppdatering();
+    }
   });
-  // Live stempling for alle brukere
+  // Live stempling og brukerdata
   fbSub('data', val => {
     if(!val) return;
-    let nyStempling = false;
     Object.entries(val).forEach(([k,v]) => {
       if(k.startsWith('inn_')) {
         localStorage.__origSet('rt_inn_'+k.slice(4), typeof v==='string'?v:JSON.stringify(v));
-        nyStempling = true;
       }
       if(k.startsWith('u_')) {
-        // Brukerlogg (sl), kalender (kl), oppdrag (op)
         const m = k.match(/^u_(.+)_(sl|kl|op)$/);
         if(m) localStorage.__origSet(`rt_${m[2]}_${m[1]}`, typeof v==='string'?v:JSON.stringify(v));
       }
     });
-    if(nyStempling) {
-      // Oppdater live-dashboard automatisk
-      const adm = document.getElementById('screen-admin');
-      const ldr = document.getElementById('screen-leder');
-      if(adm && adm.classList.contains('active') && typeof renderLiveDashboard==='function') renderLiveDashboard();
-      if(ldr && ldr.classList.contains('active') && typeof ldrRenderLive==='function') ldrRenderLive();
-      if(typeof oppdaterNavBadges==='function') oppdaterNavBadges();
-    }
+    planleggOppdatering();
   });
 }
 
