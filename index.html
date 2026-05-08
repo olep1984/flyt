@@ -1126,6 +1126,18 @@ async function syncFraFirebase() {
     }
   }
 
+  // Hent underenheter for hvert hoved-oppdrag
+  const fbHoved = await fbGet('data/rt_op_hoved');
+  if(fbHoved) {
+    const hoved = typeof fbHoved==='string'?JSON.parse(fbHoved):fbHoved;
+    if(Array.isArray(hoved)) {
+      for(const h of hoved) {
+        const under = await fbGet('data/op_under_'+h.id);
+        if(under !== null) localStorage.setItem('rt_op_under_'+h.id, typeof under==='string'?under:JSON.stringify(under));
+      }
+    }
+  }
+
   console.log('✓ Firebase sync ferdig');
   window._fbKlar = true;
 }
@@ -1217,13 +1229,26 @@ function startLiveSync() {
       planleggOppdatering();
     }
   });
+  fbSub('data/rt_op_hoved', async val => {
+    if(val) {
+      localStorage.__origSet('rt_op_hoved', typeof val==='string'?val:JSON.stringify(val));
+      // Hent underenheter for hvert hoved
+      const hoved = typeof val==='string'?JSON.parse(val):val;
+      if(Array.isArray(hoved)) {
+        for(const h of hoved) {
+          const under = await window.fbGet('data/op_under_'+h.id);
+          if(under !== null) localStorage.__origSet('rt_op_under_'+h.id, typeof under==='string'?under:JSON.stringify(under));
+        }
+      }
+      planleggOppdatering();
+    }
+  });
   fbSub('data/rt_op_reg', val => {
     if(val) {
       localStorage.__origSet('rt_op_reg', typeof val==='string'?val:JSON.stringify(val));
       planleggOppdatering();
     }
   });
-  // Live stempling og brukerdata
   fbSub('data', val => {
     if(!val) return;
     Object.entries(val).forEach(([k,v]) => {
@@ -5602,7 +5627,7 @@ async function manuellOppdater() {
   }
 
   try {
-    // Hent brukere direkte (viktigst)
+    // Hent brukere
     const fbUsers = await window.fbGet('data/rt_users');
     if(fbUsers) {
       const parsed = typeof fbUsers==='string'?JSON.parse(fbUsers):fbUsers;
@@ -5610,22 +5635,33 @@ async function manuellOppdater() {
       USERS = loadUsers();
     }
 
-    // Hent stempling for alle kjente brukere
-    const alleNavn = Object.keys(USERS);
-    for(const uname of alleNavn) {
-      const inn = await window.fbGet(`data/inn_${uname}`);
-      if(inn !== null) localStorage.__origSet(`rt_inn_${uname}`, typeof inn==='string'?inn:JSON.stringify(inn));
-      else localStorage.__origSet(`rt_inn_${uname}`, '');
-
-      const sl = await window.fbGet(`data/u_${uname}_sl`);
-      if(sl !== null) localStorage.__origSet(`rt_sl_${uname}`, typeof sl==='string'?sl:JSON.stringify(sl));
+    // Hent oppdrag-strukturer (hoved + underenheter)
+    const fbHoved = await window.fbGet('data/rt_op_hoved');
+    if(fbHoved) {
+      localStorage.__origSet('rt_op_hoved', typeof fbHoved==='string'?fbHoved:JSON.stringify(fbHoved));
+      // Hent underenheter for hvert hoved-oppdrag
+      const hoved = typeof fbHoved==='string'?JSON.parse(fbHoved):fbHoved;
+      if(Array.isArray(hoved)) {
+        for(const h of hoved) {
+          const under = await window.fbGet('data/op_under_'+h.id);
+          if(under !== null) localStorage.__origSet('rt_op_under_'+h.id, typeof under==='string'?under:JSON.stringify(under));
+        }
+      }
     }
 
-    // Hent øvrige data
-    const ekstraKeys = ['rt_kjoretoy','rt_feilmeldinger','rt_op_reg','rt_handbok','rt_op_hoved'];
+    // Hent øvrige nøkler
+    const ekstraKeys = ['rt_kjoretoy','rt_feilmeldinger','rt_op_reg','rt_op_felt_liste','rt_oppdrag_global','rt_handbok'];
     for(const k of ekstraKeys) {
       const val = await window.fbGet('data/' + k);
       if(val !== null) localStorage.__origSet(k, typeof val==='string'?val:JSON.stringify(val));
+    }
+
+    // Hent stempling for alle kjente brukere
+    for(const uname of Object.keys(USERS)) {
+      const inn = await window.fbGet(`data/inn_${uname}`);
+      if(inn !== null) localStorage.__origSet(`rt_inn_${uname}`, typeof inn==='string'?inn:JSON.stringify(inn));
+      const sl = await window.fbGet(`data/u_${uname}_sl`);
+      if(sl !== null) localStorage.__origSet(`rt_sl_${uname}`, typeof sl==='string'?sl:JSON.stringify(sl));
     }
 
     // Oppdater innlogget brukers egne data
@@ -5633,13 +5669,12 @@ async function manuellOppdater() {
     kalData = loadKal(currentUser);
     oppdragData = loadOp(currentUser);
 
-    // Oppdater UI
     oppdaterAktivSkjerm();
     updateUI();
     showToast('✓ Oppdatert!');
   } catch(e) {
     console.error('Oppdatering feilet:', e);
-    showToast('Noe gikk galt, prøv igjen 😕');
+    showToast('Sjekk internettforbindelsen og prøv igjen');
   } finally {
     if(btn) { btn.classList.remove('spinner'); btn.disabled = false; }
   }
@@ -6945,9 +6980,15 @@ function saveOpFeltListe(d) { localStorage.setItem('rt_op_felt_liste', JSON.stri
 let OP_FELT_LISTE = loadOpFeltListe();
 
 function loadOpHoved()        { return JSON.parse(localStorage.getItem('rt_op_hoved')||'[]'); }
-function saveOpHoved(d)       { localStorage.setItem('rt_op_hoved', JSON.stringify(d)); }
+function saveOpHoved(d)       {
+  localStorage.setItem('rt_op_hoved', JSON.stringify(d));
+  if(window.fbSet) window.fbSet('data/rt_op_hoved', d);
+}
 function loadOpUnder(hovedId) { return JSON.parse(localStorage.getItem('rt_op_under_'+hovedId)||'[]'); }
-function saveOpUnder(hId,d)   { localStorage.setItem('rt_op_under_'+hId, JSON.stringify(d)); }
+function saveOpUnder(hId,d)   {
+  localStorage.setItem('rt_op_under_'+hId, JSON.stringify(d));
+  if(window.fbSet) window.fbSet('data/op_under_'+hId, d);
+}
 function loadOpReg()          { return JSON.parse(localStorage.getItem('rt_op_reg')||'[]'); }
 function saveOpReg(d)         { localStorage.setItem('rt_op_reg', JSON.stringify(d)); }
 
