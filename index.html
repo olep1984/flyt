@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>RENGÅRD TRANSPORT a/s</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -1233,6 +1236,8 @@ function startLiveSync() {
   });
 }
 
+const APP_VERSJON = '2.1'; // Øk dette tallet når du laster opp ny versjon
+
 // Start
 localStorage.__origSet = localStorage.setItem.bind(localStorage);
 syncFraFirebase().then(() => {
@@ -1241,6 +1246,20 @@ syncFraFirebase().then(() => {
   // Oppdater UI hvis allerede innlogget
   if(typeof oppdaterNavBadges === 'function') oppdaterNavBadges();
 });
+
+// Versjonssjekk — tvinger reload hvis ny versjon er publisert
+async function sjekkVersjon() {
+  try {
+    const serverVersjon = await fbGet('app/versjon');
+    if(serverVersjon && serverVersjon !== APP_VERSJON) {
+      console.log(`Ny versjon ${serverVersjon} funnet, laster på nytt...`);
+      window.location.reload(true);
+    }
+    // Skriv denne versjonen til Firebase (kun én gang)
+    await fbSet('app/versjon', APP_VERSJON);
+  } catch(e) { console.warn('Versjonssjekk feilet', e); }
+}
+setTimeout(sjekkVersjon, 2000);
 </script>
 
 </head>
