@@ -1040,7 +1040,10 @@ body.dark .adm-tab.active{color:#f59e0b;background:rgba(245,158,11,.1);}
 .nav-card.rolle-admin:hover{border-top-color:#f59e0b;}
 .nav-card.rolle-leder:hover{border-top-color:#a78bfa;}
 .nav-card.rolle-sjafor:hover{border-top-color:#34d399;}
-.nav-card.full-width{grid-column:1/-1;}
+.btn-oppdater{background:none;border:1px solid rgba(255,255,255,.2);color:var(--white);border-radius:3px;font-size:14px;padding:5px 9px;cursor:pointer;transition:all .2s;line-height:1;}
+.btn-oppdater:hover{border-color:var(--accent);color:var(--accent);}
+.btn-oppdater.spinner{animation:snurr .7s linear infinite;}
+@keyframes snurr{to{transform:rotate(360deg);}}
 
 /* ── SJÅFØRHÅNDBOK ── */
 .handbok-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
@@ -1903,6 +1906,7 @@ setTimeout(sjekkVersjon, 2000);
       <button class="btn-logout" id="btn-leder-dash" onclick="initLederPanel();goTo('screen-leder')" style="display:none;border-color:rgba(124,58,237,.4);color:#a78bfa;">🏅 Lederpanel</button>
       <button class="btn-logout" id="btn-admin-dash" onclick="goTo('screen-admin')" style="display:none;border-color:rgba(245,158,11,.4);color:#f59e0b;">⚙ Admin</button>
       <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Bytt tema">🌙 Natt</button>
+      <button class="btn-oppdater" id="btn-oppdater" onclick="manuellOppdater()" title="Hent fersk data">🔄</button>
       <button class="btn-logout" onclick="doLogout()">Logg ut</button>
     </div>
   </div>
@@ -5585,6 +5589,51 @@ function renderAlleOppdrag() {
     </div>`;
   });
   el.innerHTML = html || '<div style="color:var(--grey);padding:14px 16px 0;text-align:center;">Ingen oppdrag funnet.</div>';
+}
+
+async function manuellOppdater() {
+  const btn = document.getElementById('btn-oppdater');
+  if(btn) { btn.classList.add('spinner'); btn.disabled = true; }
+
+  try {
+    // Hent all data fra Firebase på nytt
+    const keys = [
+      'rt_users','rt_kjoretoy','rt_roller','rt_handbok','rt_feilmeldinger',
+      'rt_op_felt_liste','rt_op_hoved','rt_op_reg','rt_oppdrag_global',
+      'rt_kunder','rt_regnskap','rt_hr_info','rt_vars_innst',
+      'rt_global_satser','rt_lonn_modeller','rt_utbetalt','rt_sik','rt_srv'
+    ];
+    for(const k of keys) {
+      const val = await window.fbGet('data/' + k);
+      if(val !== null) localStorage.__origSet(k, typeof val==='string'?val:JSON.stringify(val));
+    }
+    // Hent stempling og logg for alle brukere
+    const alleData = await window.fbGet('data');
+    if(alleData) {
+      Object.entries(alleData).forEach(([k,v]) => {
+        if(k.startsWith('inn_')) localStorage.__origSet('rt_inn_'+k.slice(4), typeof v==='string'?v:JSON.stringify(v));
+        if(k.startsWith('u_')) {
+          const m = k.match(/^u_(.+)_(sl|kl|op)$/);
+          if(m) localStorage.__origSet(`rt_${m[2]}_${m[1]}`, typeof v==='string'?v:JSON.stringify(v));
+        }
+      });
+    }
+
+    // Oppdater innlogget brukers data
+    USERS = loadUsers();
+    stemplingLog = loadLog(currentUser);
+    kalData = loadKal(currentUser);
+    oppdragData = loadOp(currentUser);
+
+    // Oppdater UI
+    oppdaterAktivSkjerm();
+    updateUI();
+    showToast('✓ Oppdatert!');
+  } catch(e) {
+    showToast('Kunne ikke hente data 😕');
+  } finally {
+    if(btn) { btn.classList.remove('spinner'); btn.disabled = false; }
+  }
 }
 
 function doLogout() {
